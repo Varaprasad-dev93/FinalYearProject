@@ -1,10 +1,12 @@
 import google.generativeai as genai
 import os
 
-genai.configure(api_key="AIzaSyBKubRLNwJBQXMyNPGV10QPrKNjS-QJ8dg")
+def config():
+    return genai.configure(api_key=os.environ["GOOGLE_API_KEY"])
 
 def get_gemini_vision_insights(pil_image):
-    model = genai.GenerativeModel("gemini-1.5-pro")
+     
+    model = genai.GenerativeModel("gemini-2.5-flash")
 
     prompt = """
 Analyze the given data visualization and extract insights.

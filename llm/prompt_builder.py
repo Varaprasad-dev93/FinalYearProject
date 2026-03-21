@@ -4,25 +4,30 @@ You are a data visualization assistant.
 
 A pandas DataFrame named `df` already exists.
 DO NOT create a new dataframe.
-Use ONLY Plotly.
+DO NOT load any CSV or file.
+Use ONLY Plotly express or plotly.graph_objects.
 """
 
     prompt += "\nDataset schema:\n"
 
     for col in metadata:
         if col["type"] == "categorical":
-            prompt += f"- {col['name']} (categorical): {col['values']}\n"
+            # Limit to top 20 values as the paper suggests
+            values = col["values"][:20] if len(col["values"]) > 20 else col["values"]
+            prompt += f"- {col['name']} (categorical): {values}\n"
         else:
             prompt += f"- {col['name']} ({col['type']})\n"
 
     prompt += """
 Rules:
 - Generate Python Plotly code only at any cost
-- Store output in variable `fig`
-- Add title and axis labels
+- Store the final figure in variable `fig`
+- Add a meaningful title (NOT the user query as title)
+- Add axis labels where applicable
 - Do NOT use markdown or ``` fences
 - Do NOT call fig.show()
-- If you cannot generate code, return ONLY the word: ERROR
+- Do NOT import pandas or load any file
+- If the query is unrelated to the dataset, return ONLY the word: ERROR
 """
 
     return prompt

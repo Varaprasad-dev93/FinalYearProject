@@ -117,7 +117,7 @@ df = dataset["clean_df"] if data_version == "Cleaned" else dataset["raw_df"]
 # ✅ DATASET EXPLORER IN SIDEBAR
 # -------------------------------------------------
 st.sidebar.markdown("---")
-st.sidebar.markdown("###Dataset Explorer")
+st.sidebar.markdown("### Dataset Explorer")
 
 # Summary stats
 total_rows, total_cols = df.shape
@@ -252,7 +252,7 @@ for entry in st.session_state.chat_display[context_id]:
         else:
             st.plotly_chart(entry["fig"], use_container_width=True)
             if entry.get("insights"):
-                st.markdown("### 🔍 Visual Insights")
+                st.markdown("### Visual Insights")
                 st.write(entry["insights"])
 
 # -------------------------------------------------
@@ -286,7 +286,7 @@ if query:
                     pil_img = plotly_fig_to_pil(fig)
                     if pil_img is not None:
                         insights = get_gemini_vision_insights(pil_img)
-                        st.markdown("###Visual Insights")
+                        st.markdown("### Visual Insights")
                         st.write(insights)
                     else:
                         st.info("Insights unavailable — chart could not be converted to image.")

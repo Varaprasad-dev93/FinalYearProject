@@ -247,8 +247,6 @@ for entry in st.session_state.chat_display[context_id]:
     with st.chat_message("assistant"):
         if entry["error"]:
             st.error(f"Could not generate visualization: {entry['error']}")
-            if DEBUG:
-                st.code(entry["llm_output"], language="python")
         else:
             st.plotly_chart(entry["fig"], use_container_width=True)
             if entry.get("insights"):
@@ -277,8 +275,6 @@ if query:
     with st.chat_message("assistant"):
         if error:
             st.error(f"Could not generate visualization: {error}")
-            if DEBUG:
-                st.code(llm_output, language="python")
         else:
             st.plotly_chart(fig, use_container_width=True)
             if insights_mode:

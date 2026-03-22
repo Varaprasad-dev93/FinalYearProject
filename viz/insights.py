@@ -1,11 +1,8 @@
 import google.generativeai as genai
 import os
 
-def config():
-    return genai.configure(api_key=os.environ["GOOGLE_API_KEY"])
-
 def get_gemini_vision_insights(pil_image):
-     
+    genai.configure(api_key=os.environ["GOOGLE_API_KEY"])
     model = genai.GenerativeModel("gemini-2.5-flash")
 
     prompt = """

@@ -5,6 +5,7 @@ langchain-community
 langchain-core
 langchain-google-genai
 pandas
+kaleido
 numpy==1.26.4
 plotly
 requests

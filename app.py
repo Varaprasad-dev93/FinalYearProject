@@ -13,15 +13,9 @@ from viz.insights import get_gemini_vision_insights
 from PIL import Image
 import io
 
-# -------------------------------------------------
-# PAGE SETUP
-# -------------------------------------------------
 st.set_page_config(layout="wide")
 st.title("Visistant – NL to Visualization")
 
-# -------------------------------------------------
-# API KEY HANDLING
-# -------------------------------------------------
 if "GOOGLE_API_KEY" not in os.environ:
     key = st.sidebar.text_input("Google API Key", type="password")
     if key:
@@ -30,18 +24,12 @@ if "GOOGLE_API_KEY" not in os.environ:
         st.warning("Please enter Google API Key")
         st.stop()
 
-# -------------------------------------------------
-# SESSION INIT
-# -------------------------------------------------
 if "datasets" not in st.session_state:
     st.session_state.datasets = {}
 
 if "chat_display" not in st.session_state:
     st.session_state.chat_display = {}
 
-# -------------------------------------------------
-# FILE UPLOAD
-# -------------------------------------------------
 uploaded_files = st.sidebar.file_uploader(
     "Upload CSV files",
     type=["csv"],
@@ -66,9 +54,6 @@ if uploaded_files:
             "contexts": {}
         }
 
-# -------------------------------------------------
-# DATASET SELECTION
-# -------------------------------------------------
 if not st.session_state.datasets:
     st.info("Upload a CSV to begin.")
     st.stop()
@@ -81,9 +66,6 @@ dataset_id = st.selectbox(
 
 dataset = st.session_state.datasets[dataset_id]
 
-# -------------------------------------------------
-# SAFETY CHECKS
-# -------------------------------------------------
 if "raw_df" not in dataset:
     st.error("Dataset corrupted. Please re-upload the file.")
     st.stop()
@@ -94,9 +76,6 @@ if "clean_df" not in dataset:
 if "contexts" not in dataset:
     dataset["contexts"] = {}
 
-# -------------------------------------------------
-# MODE SELECTION
-# -------------------------------------------------
 st.sidebar.markdown("### Mode")
 advanced_mode = st.sidebar.checkbox("Advanced Mode")
 insights_mode = st.sidebar.checkbox("Show Insights", value=True)
@@ -105,14 +84,9 @@ data_version = "Cleaned"
 if advanced_mode:
     data_version = st.sidebar.radio("Data version", ["Cleaned", "Raw"])
 
-# -------------------------------------------------
-# SELECT DATAFRAME
-# -------------------------------------------------
 df = dataset["clean_df"] if data_version == "Cleaned" else dataset["raw_df"]
 
-# -------------------------------------------------
-# DATASET EXPLORER IN SIDEBAR
-# -------------------------------------------------
+
 st.sidebar.markdown("---")
 st.sidebar.markdown("### Dataset Explorer")
 
@@ -188,9 +162,6 @@ else:
 
 st.sidebar.markdown("---")
 
-# -------------------------------------------------
-# DEFAULT vs ADVANCED MODE
-# -------------------------------------------------
 if advanced_mode:
     columns = st.sidebar.multiselect("Select columns", df.columns.tolist())
     if not columns:
@@ -205,9 +176,6 @@ else:
     columns = None
     mode = "default"
 
-# -------------------------------------------------
-# CONTEXT ID
-# -------------------------------------------------
 context_id = make_context_id(dataset_id, mode, columns)
 
 if context_id not in dataset["contexts"]:
@@ -223,16 +191,6 @@ chain = dataset["contexts"][context_id]["chain"]
 if context_id not in st.session_state.chat_display:
     st.session_state.chat_display[context_id] = []
 
-# -------------------------------------------------
-# HELPER
-# -------------------------------------------------
-def plotly_fig_to_pil(fig):
-    try:
-        img_bytes = fig.to_image(format="png")
-        return Image.open(io.BytesIO(img_bytes))
-    except Exception as e:
-        st.warning(f"Could not convert chart to image: {str(e)}")
-        return None
 
 def extract_llm_text(content):
     """Handle both string and list content block responses."""
@@ -245,9 +203,6 @@ def extract_llm_text(content):
         ).strip()
     return str(content).strip()
 
-# -------------------------------------------------
-# DISPLAY FULL CHAT HISTORY
-# -------------------------------------------------
 for entry in st.session_state.chat_display[context_id]:
     with st.chat_message("user"):
         st.write(entry["query"])
@@ -260,9 +215,6 @@ for entry in st.session_state.chat_display[context_id]:
                 st.markdown("### Visual Insights")
                 st.markdown(entry["insights"])
 
-# -------------------------------------------------
-# CHAT INPUT
-# -------------------------------------------------
 query = st.chat_input("Ask a question about the data")
 
 if query:
@@ -288,14 +240,9 @@ if query:
             st.plotly_chart(fig, use_container_width=True)
             if insights_mode:
                 with st.spinner("Generating insights..."):
-                    pil_img = plotly_fig_to_pil(fig)
-                    if pil_img is not None:
-                        insights = get_gemini_vision_insights(pil_img)
-                        st.markdown("### Visual Insights")
-                        st.markdown(insights)
-                    else:
-                        st.info("Insights unavailable — chart could not be converted to image.")
-
+                    insights = get_gemini_vision_insights(fig)
+                    st.markdown("### Visual Insights")
+                    st.markdown(insights)
     st.session_state.chat_display[context_id].append({
         "query": query,
         "llm_output": llm_output,

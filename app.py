@@ -8,7 +8,7 @@ from llm.prompt_builder import build_initial_prompt
 from llm.chain import create_conversation_chain, get_session_history, inject_initial_prompt
 from viz.executor import execute_plot
 from context.context_id import make_context_id
-from viz.insights import get_gemini_vision_insights,config
+from viz.insights import get_gemini_vision_insights
 
 from PIL import Image
 import io
@@ -26,7 +26,6 @@ if "GOOGLE_API_KEY" not in os.environ:
     key = st.sidebar.text_input("Google API Key", type="password")
     if key:
         os.environ["GOOGLE_API_KEY"] = key
-        config()
     else:
         st.warning("Please enter Google API Key")
         st.stop()
@@ -49,17 +48,6 @@ uploaded_files = st.sidebar.file_uploader(
     accept_multiple_files=True
 )
 
-# DEBUG = st.sidebar.checkbox("Debug mode")
-
-# if DEBUG:
-#     local_path = r"D:\vs studio\customer_churn.csv"
-#     if os.path.exists(local_path):
-#         class FakeFile:
-#             name = "customer_churn.csv"
-#             def read(self):
-#                 return open(local_path, "rb").read()
-#         uploaded_files = [FakeFile()]
-
 if uploaded_files:
     for file in uploaded_files:
         existing_names = [v["name"] for v in st.session_state.datasets.values()]
@@ -78,6 +66,9 @@ if uploaded_files:
             "contexts": {}
         }
 
+# -------------------------------------------------
+# DATASET SELECTION
+# -------------------------------------------------
 if not st.session_state.datasets:
     st.info("Upload a CSV to begin.")
     st.stop()
@@ -90,6 +81,9 @@ dataset_id = st.selectbox(
 
 dataset = st.session_state.datasets[dataset_id]
 
+# -------------------------------------------------
+# SAFETY CHECKS
+# -------------------------------------------------
 if "raw_df" not in dataset:
     st.error("Dataset corrupted. Please re-upload the file.")
     st.stop()
@@ -100,6 +94,9 @@ if "clean_df" not in dataset:
 if "contexts" not in dataset:
     dataset["contexts"] = {}
 
+# -------------------------------------------------
+# MODE SELECTION
+# -------------------------------------------------
 st.sidebar.markdown("### Mode")
 advanced_mode = st.sidebar.checkbox("Advanced Mode")
 insights_mode = st.sidebar.checkbox("Show Insights", value=True)
@@ -114,16 +111,14 @@ if advanced_mode:
 df = dataset["clean_df"] if data_version == "Cleaned" else dataset["raw_df"]
 
 # -------------------------------------------------
-# ✅ DATASET EXPLORER IN SIDEBAR
+# DATASET EXPLORER IN SIDEBAR
 # -------------------------------------------------
 st.sidebar.markdown("---")
 st.sidebar.markdown("### Dataset Explorer")
 
-# Summary stats
 total_rows, total_cols = df.shape
 st.sidebar.markdown(f"**Rows:** {total_rows:,} &nbsp;|&nbsp; **Columns:** {total_cols}")
 
-# Column type breakdown
 num_cols = df.select_dtypes(include=["number"]).columns.tolist()
 cat_cols = df.select_dtypes(include=["object", "category"]).columns.tolist()
 bool_cols = df.select_dtypes(include=["bool"]).columns.tolist()
@@ -134,7 +129,6 @@ st.sidebar.markdown(
     f"Boolean: **{len(bool_cols)}**"
 )
 
-# Per-column detail expander
 with st.sidebar.expander("Column Details", expanded=False):
     col_data = []
     for col in df.columns:
@@ -161,7 +155,6 @@ with st.sidebar.expander("Column Details", expanded=False):
     col_df = pd.DataFrame(col_data)
     st.dataframe(col_df, use_container_width=True, hide_index=True)
 
-# Numeric column stats expander
 if num_cols:
     with st.sidebar.expander("Numeric Stats", expanded=False):
         st.dataframe(
@@ -169,7 +162,6 @@ if num_cols:
             use_container_width=True
         )
 
-# Categorical value counts expander
 if cat_cols:
     with st.sidebar.expander("Categorical Counts", expanded=False):
         selected_cat = st.selectbox(
@@ -181,20 +173,24 @@ if cat_cols:
         val_counts.columns = ["Value", "Count"]
         st.dataframe(val_counts, use_container_width=True, hide_index=True)
 
-# Missing values expander
 missing = df.isnull().sum()
 missing = missing[missing > 0]
 if not missing.empty:
     with st.sidebar.expander("Missing Values", expanded=False):
         missing_df = missing.reset_index()
         missing_df.columns = ["Column", "Missing Count"]
-        missing_df["Missing %"] = ((missing_df["Missing Count"] / total_rows) * 100).round(1)
+        missing_df["Missing %"] = (
+            (missing_df["Missing Count"] / total_rows) * 100
+        ).round(1)
         st.dataframe(missing_df, use_container_width=True, hide_index=True)
 else:
     st.sidebar.success("No missing values")
 
 st.sidebar.markdown("---")
 
+# -------------------------------------------------
+# DEFAULT vs ADVANCED MODE
+# -------------------------------------------------
 if advanced_mode:
     columns = st.sidebar.multiselect("Select columns", df.columns.tolist())
     if not columns:
@@ -238,6 +234,17 @@ def plotly_fig_to_pil(fig):
         st.warning(f"Could not convert chart to image: {str(e)}")
         return None
 
+def extract_llm_text(content):
+    """Handle both string and list content block responses."""
+    if isinstance(content, str):
+        return content.strip()
+    elif isinstance(content, list):
+        return "".join(
+            block.get("text", "") if isinstance(block, dict) else str(block)
+            for block in content
+        ).strip()
+    return str(content).strip()
+
 # -------------------------------------------------
 # DISPLAY FULL CHAT HISTORY
 # -------------------------------------------------
@@ -247,13 +254,11 @@ for entry in st.session_state.chat_display[context_id]:
     with st.chat_message("assistant"):
         if entry["error"]:
             st.error(f"Could not generate visualization: {entry['error']}")
-            if DEBUG:
-                st.code(entry["llm_output"], language="python")
         else:
             st.plotly_chart(entry["fig"], use_container_width=True)
             if entry.get("insights"):
                 st.markdown("### Visual Insights")
-                st.write(entry["insights"])
+                st.markdown(entry["insights"])
 
 # -------------------------------------------------
 # CHAT INPUT
@@ -269,7 +274,8 @@ if query:
             {"input": query},
             config={"configurable": {"session_id": context_id}}
         )
-        llm_output = response.content
+        # ✅ Clean extraction in one place using helper
+        llm_output = extract_llm_text(response.content)
         fig, error = execute_plot(llm_output, df_for_llm)
 
     insights = None
@@ -277,8 +283,7 @@ if query:
     with st.chat_message("assistant"):
         if error:
             st.error(f"Could not generate visualization: {error}")
-            if DEBUG:
-                st.code(llm_output, language="python")
+            st.code(llm_output, language="python")  # show code on error only
         else:
             st.plotly_chart(fig, use_container_width=True)
             if insights_mode:
@@ -287,7 +292,7 @@ if query:
                     if pil_img is not None:
                         insights = get_gemini_vision_insights(pil_img)
                         st.markdown("### Visual Insights")
-                        st.write(insights)
+                        st.markdown(insights)
                     else:
                         st.info("Insights unavailable — chart could not be converted to image.")
 

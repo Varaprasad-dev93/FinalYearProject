@@ -9,6 +9,7 @@ from llm.chain import create_conversation_chain, get_session_history, inject_ini
 from viz.executor import execute_plot
 from context.context_id import make_context_id
 from viz.insights import get_gemini_vision_insights
+from voice.translate import render_voice_input          # ← NEW
 
 from PIL import Image
 import io
@@ -19,7 +20,7 @@ st.title("Visistant – NL to Visualization")
 if "GOOGLE_API_KEY" not in os.environ:
     key = st.sidebar.text_input("Google API Key", type="password")
     if key:
-        os.environ["GOOGLE_API_KEY"] = key
+        os.environ["GOOGLE_API_KEY"] = key 
     else:
         st.warning("Please enter Google API Key")
         st.stop()
@@ -203,6 +204,8 @@ def extract_llm_text(content):
         ).strip()
     return str(content).strip()
 
+
+# ── Chat history ─────────────────────────────────────────────────────────────
 for entry in st.session_state.chat_display[context_id]:
     with st.chat_message("user"):
         st.write(entry["query"])
@@ -215,8 +218,26 @@ for entry in st.session_state.chat_display[context_id]:
                 st.markdown("### Visual Insights")
                 st.markdown(entry["insights"])
 
-query = st.chat_input("Ask a question about the data")
 
+# ── Input area: Voice tab + Text tab ─────────────────────────────────────────
+tab_voice, tab_text = st.tabs(["🎙 Voice Query", "⌨️ Type Query"])
+
+with tab_voice:
+    st.caption(
+        "Record your question in any Indian language — "
+        "it will be translated to English and sent to the LLM."
+    )
+    voice_query = render_voice_input()   # returns English string or None
+
+with tab_text:
+    voice_query = voice_query  # preserve value if voice already returned something
+    text_query = st.chat_input("Ask a question about the data")
+
+# Decide which query to process: voice takes priority if both somehow arrive
+query = voice_query or text_query
+
+
+# ── Process query (unchanged logic) ──────────────────────────────────────────
 if query:
     with st.chat_message("user"):
         st.write(query)
@@ -226,7 +247,6 @@ if query:
             {"input": query},
             config={"configurable": {"session_id": context_id}}
         )
-        # ✅ Clean extraction in one place using helper
         llm_output = extract_llm_text(response.content)
         fig, error = execute_plot(llm_output, df_for_llm)
 
@@ -235,14 +255,15 @@ if query:
     with st.chat_message("assistant"):
         if error:
             st.error(f"Could not generate visualization: {error}")
-            st.code(llm_output, language="python")  # show code on error only
+            st.code(llm_output, language="python")
         else:
             st.plotly_chart(fig, use_container_width=True)
             if insights_mode:
                 with st.spinner("Generating insights..."):
-                    insights = get_gemini_vision_insights(fig)
+                    insights = get_gemini_vision_insights(fig, df_for_llm)
                     st.markdown("### Visual Insights")
                     st.markdown(insights)
+
     st.session_state.chat_display[context_id].append({
         "query": query,
         "llm_output": llm_output,

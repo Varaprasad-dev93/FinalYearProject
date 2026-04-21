@@ -256,6 +256,7 @@ if query:
         if error:
             st.error(f"Could not generate visualization: {error}")
             st.code(llm_output, language="python")
+            print("Error : ",error)
         else:
             st.plotly_chart(fig, use_container_width=True)
             if insights_mode:
@@ -263,7 +264,7 @@ if query:
                     insights = get_gemini_vision_insights(fig, df_for_llm)
                     st.markdown("### Visual Insights")
                     st.markdown(insights)
-
+    print("Successful")
     st.session_state.chat_display[context_id].append({
         "query": query,
         "llm_output": llm_output,
